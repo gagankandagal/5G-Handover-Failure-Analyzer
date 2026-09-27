@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>5G Handover Failure Analyzer</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 30px auto;
+        }
+
+        .section {
+            background: white;
+            margin-bottom: 25px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            color: #555;
+            font-size: 15px;
+        }
+
+        .value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #15803d;
+            font-weight: bold;
+        }
+
+        .failure {
+            color: #b91c1c;
+            font-weight: bold;
+        }
+
+        input[type="file"] {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: white;
+        }
+
+        button {
+            background: #172554;
+            color: white;
+            border: none;
+            padding: 12px 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        .message {
+            background: #dcfce7;
+            color: #166534;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background: #e8eefc;
+        }
+
+        @media (max-width: 900px) {
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<header>
+    <h1>5G Handover Failure Analyzer</h1>
+    <p>Network Handover Performance Dashboard</p>
+</header>
+
+<div class="container">
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+
+    <!-- CSV UPLOAD -->
+
+    <div class="section">
+
+        <h2>Upload Handover Dataset</h2>
+
+        <p>
+            Select a CSV file containing 5G handover records.
+        </p>
+
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+
+            <input
+                type="file"
+                name="csv_file"
+                accept=".csv"
+                required
+            >
+
+            <button type="submit">
+                Upload & Analyze
+            </button>
+
+        </form>
+
+    </div>
+
+
+    
+<div class="section">
+
+    <h2>Export Reports</h2>
+
+    <a href="/download/csv" download>
+        <button type="button">Download CSV Report</button>
+    </a>
+
+    <a href="/download/json" download>
+        <button type="button">Download JSON Report</button>
+    </a>
+
+</div>
+
+<!-- KPI CARDS -->
+
+    <div class="cards">
+
+        <div class="card">
+            <h3>Total Handovers</h3>
+            <div class="value">
+                {{ data.kpis.totalHandovers }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Successful</h3>
+            <div class="value success">
+                {{ data.kpis.successful }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Failed</h3>
+            <div class="value failure">
+                {{ data.kpis.failed }}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Success Rate</h3>
+            <div class="value">
+                {{ data.kpis.successRate }}%
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Failure Rate</h3>
+            <div class="value">
+                {{ data.kpis.failureRate }}%
+            </div>
+        </div>
+
+    </div>
+
+
+    
+<!-- CHARTS -->
+<div class="section">
+
+    <h2>Handover Performance Charts</h2>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:30px;">
+
+        <div>
+            <h3>Success vs Failure</h3>
+            <canvas id="resultChart"></canvas>
+        </div>
+
+        <div>
+            <h3>Radio Measurements</h3>
+            <canvas id="radioChart"></canvas>
+        </div>
+
+        <div>
+            <h3>Handover Duration</h3>
+            <canvas id="durationChart"></canvas>
+        </div>
+
+        <div>
+            <h3>Cell-to-Cell Failure Rate</h3>
+            <canvas id="cellFailureChart"></canvas>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- FAILURE REASON ANALYSIS -->
+<div class="section">
+    <h2>Failure Reason Analysis</h2>
+    <canvas id="failureReasonChart"></canvas>
+</div>
+
+<!-- CELL ANALYSIS -->
+
+    <div class="section">
+
+        <h2>Cell-to-Cell Analysis</h2>
+
+        <table>
+
+            <tr>
+                <th>Source Cell</th>
+                <th>Target Cell</th>
+                <th>Attempts</th>
+                <th>Successes</th>
+                <th>Failures</th>
+                <th>Success Rate</th>
+                <th>Failure Rate</th>
+            </tr>
+
+            {% for cell in data.cellStatistics %}
+
+            <tr>
+
+                <td>{{ cell.sourceCell }}</td>
+                <td>{{ cell.targetCell }}</td>
+                <td>{{ cell.attempts }}</td>
+
+                <td class="success">
+                    {{ cell.successes }}
+                </td>
+
+                <td class="failure">
+                    {{ cell.failures }}
+                </td>
+
+                <td>
+                    {{ cell.successRate }}%
+                </td>
+
+                <td>
+                    {{ cell.failureRate }}%
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+
+    
+<!-- HANDOVER FILTERS -->
+<div class="section">
+
+    <h2>Search & Filter Handovers</h2>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:15px;">
+
+        <input
+            type="text"
+            id="recordSearch"
+            placeholder="Search Record / Cell"
+            onkeyup="filterRecords()"
+            style="padding:12px;border:1px solid #ccc;border-radius:6px;"
+        >
+
+        <select
+            id="sourceFilter"
+            onchange="filterRecords()"
+            style="padding:12px;border:1px solid #ccc;border-radius:6px;"
+        >
+            <option value="">All Source Cells</option>
+        </select>
+
+        <select
+            id="targetFilter"
+            onchange="filterRecords()"
+            style="padding:12px;border:1px solid #ccc;border-radius:6px;"
+        >
+            <option value="">All Target Cells</option>
+        </select>
+
+
+        <button
+            type="button"
+            onclick="resetFilters()"
+            style="padding:12px 20px;border:none;border-radius:6px;cursor:pointer;"
+        >
+            Reset Filters
+        </button>
+
+        <select
+            id="resultFilter"
+            onchange="filterRecords()"
+            style="padding:12px;border:1px solid #ccc;border-radius:6px;"
+        >
+            <option value="">All Results</option>
+            <option value="SUCCESS">SUCCESS</option>
+            <option value="FAILURE">FAILURE</option>
+        </select>
+
+    </div>
+
+</div>
+
+<!-- FAILED HANDOVER RECORDS -->
+<div class="section">
+
+    <h2>Failed Handover Records</h2>
+
+    <table>
+        <tr>
+            <th>Record ID</th>
+            <th>Timestamp</th>
+            <th>Source Cell</th>
+            <th>Target Cell</th>
+            <th>RSRP</th>
+            <th>RSRQ</th>
+            <th>SINR</th>
+            <th>Duration</th>
+        </tr>
+
+        {% for record in data.records %}
+        {% if record.result == "FAILURE" %}
+        <tr>
+            <td>{{ record.recordId }}</td>
+            <td>{{ record.timestamp }}</td>
+            <td>{{ record.sourceCell }}</td>
+            <td>{{ record.targetCell }}</td>
+            <td>{{ record.rsrp }} dBm</td>
+            <td>{{ record.rsrq }} dB</td>
+            <td>{{ record.sinr }} dB</td>
+            <td>{{ record.handoverDurationMs }} ms</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+
+    </table>
+
+</div>
+
+<!-- RECORDS -->
+
+    <div class="section">
+
+        <h2>Handover Records</h2>
+
+        <table id="handoverTable">
+
+            <tr>
+                <th>Time</th>
+                <th>UE</th>
+                <th>Source</th>
+                <th>Target</th>
+                <th>RSRP</th>
+                <th>RSRQ</th>
+                <th>SINR</th>
+                <th>Result</th>
+            </tr>
+
+            {% for record in data.records %}
+
+            <tr>
+
+                <td>{{ record.timestamp }}</td>
+                <td>{{ record.ueId }}</td>
+                <td>{{ record.sourceCell }}</td>
+                <td>{{ record.targetCell }}</td>
+
+                <td>
+                    {{ record.rsrp }} dBm
+                </td>
+
+                <td>
+                    {{ record.rsrq }} dB
+                </td>
+
+                <td>
+                    {{ record.sinr }} dB
+                </td>
+
+                <td class="{% if record.result == 'SUCCESS' %}success{% else %}failure{% endif %}">
+                    {{ record.result }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const records = {{ data.records | tojson }};
+const cellStats = {{ data.cellStatistics | tojson }};
+
+const failureReasons = {{ data.failureReasons | tojson }};
+
+new Chart(document.getElementById("failureReasonChart"), {
+    type: "bar",
+    data: {
+        labels: Object.keys(failureReasons),
+        datasets: [{
+            label: "Failure Count",
+            data: Object.values(failureReasons)
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+
+new Chart(document.getElementById("resultChart"), {
+    type: "doughnut",
+    data: {
+        labels: ["Successful", "Failed"],
+        datasets: [{
+            data: [
+                {{ data.kpis.successful }},
+                {{ data.kpis.failed }}
+            ]
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+
+new Chart(document.getElementById("radioChart"), {
+    type: "line",
+    data: {
+        labels: records.map(r => "Record " + r.recordId),
+        datasets: [
+            {
+                label: "RSRP (dBm)",
+                data: records.map(r => r.rsrp)
+            },
+            {
+                label: "RSRQ (dB)",
+                data: records.map(r => r.rsrq)
+            },
+            {
+                label: "SINR (dB)",
+                data: records.map(r => r.sinr)
+            }
+        ]
+    },
+    options: {
+        responsive: true
+    }
+});
+
+new Chart(document.getElementById("durationChart"), {
+    type: "bar",
+    data: {
+        labels: records.map(r => "Record " + r.recordId),
+        datasets: [{
+            label: "Handover Duration (ms)",
+            data: records.map(r => r.handoverDurationMs)
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+
+new Chart(document.getElementById("cellFailureChart"), {
+    type: "bar",
+    data: {
+        labels: cellStats.map(
+            c => c.sourceCell + " -> " + c.targetCell
+        ),
+        datasets: [{
+            label: "Failure Rate (%)",
+            data: cellStats.map(c => c.failureRate)
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100
+            }
+        }
+    }
+});
+
+</script>
+
+
+<script>
+function populateCellFilters() {
+
+    const sourceFilter = document.getElementById("sourceFilter");
+    const targetFilter = document.getElementById("targetFilter");
+
+    if (!sourceFilter || !targetFilter) return;
+
+    const sources = [...new Set(
+        records.map(r => r.sourceCell)
+    )].sort();
+
+    const targets = [...new Set(
+        records.map(r => r.targetCell)
+    )].sort();
+
+    sources.forEach(cell => {
+        const option = document.createElement("option");
+        option.value = cell;
+        option.textContent = cell;
+        sourceFilter.appendChild(option);
+    });
+
+    targets.forEach(cell => {
+        const option = document.createElement("option");
+        option.value = cell;
+        option.textContent = cell;
+        targetFilter.appendChild(option);
+    });
+}
+
+function filterRecords() {
+
+    const search = document
+        .getElementById("recordSearch")
+        .value
+        .toLowerCase()
+        .trim();
+
+    const source = document.getElementById("sourceFilter").value;
+    const target = document.getElementById("targetFilter").value;
+    const result = document.getElementById("resultFilter").value;
+
+    const table = document.getElementById("handoverTable");
+
+    if (!table) return;
+
+    const rows = table.querySelectorAll("tr");
+
+    rows.forEach(row => {
+
+        const cells = row.cells;
+
+        if (cells.length < 8) return;
+
+        const text = row.innerText.toLowerCase();
+
+        const matchesSearch =
+            !search || text.includes(search);
+
+        const matchesSource =
+            !source || cells[2].innerText.trim() === source;
+
+        const matchesTarget =
+            !target || cells[3].innerText.trim() === target;
+
+        const matchesResult =
+            !result || cells[7].innerText.trim() === result;
+
+        row.style.display =
+            matchesSearch &&
+            matchesSource &&
+            matchesTarget &&
+            matchesResult
+                ? ""
+                : "none";
+    });
+}
+
+function resetFilters() {
+
+    document.getElementById("recordSearch").value = "";
+    document.getElementById("sourceFilter").value = "";
+    document.getElementById("targetFilter").value = "";
+    document.getElementById("resultFilter").value = "";
+
+    filterRecords();
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    populateCellFilters();
+});
+</script>
+
+</body>
+</html>
